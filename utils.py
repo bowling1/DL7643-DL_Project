@@ -1,6 +1,8 @@
 # A file to store helpful functions
 import pandas as pd
 import numpy as np
+import torch
+import torch.nn as nn
 
 # KAA 04_08_2024 -- Feel free to edit / Augment as needed!
 # This function takes a stock or etf as input. Be sure to set the filepath correctly if using a stock or etf.
@@ -59,3 +61,130 @@ def simple_time_split_validation(stock_dataframe, seed = 0, split_num = 0.75, y_
     print(str(y_test))
 
     return x_train, y_train, x_test, y_test
+
+# inspired by: https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
+def train_loop(model, opt, loss_fn, dataloader, device):
+    print("Executing training loop")
+
+    model.train()
+    total_loss = 0
+
+    for batch in dataloader:
+        X, y = batch[:, 0], batch[:, 1]
+        # If using cuda -- move to gpu
+        X, y = torch.tensor(X).to(device), torch.tensor(y).to(device)
+
+        # shift targets over by one to predict the token at pos = 1.
+        # TODO verify empirically if we even need to do this for our application?
+
+        y_input = y[:, :-1]
+        y_expected = y[:, 1:]
+
+        # Masking out next words
+        # TODO enable this if necessary. May not be necesary for us.
+        # seq_len = y_input.size(1)
+        # tgt_mask = mode.get_tgt_mask(seq_len).to(device)
+
+        # get prediction
+        pred = model(X, y_input)    # source uses this -> pred = model(X, y_input, tgt_mask)
+
+        # change pred to have batch size first
+        pred = pred.permute(1, 2, 0)
+
+        # Compute the loss
+        loss = loss_fn(pred, y_expected)
+
+        # Backpropogation
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+
+        total_loss += loss.detach().item()
+
+    return total_loss / len(dataloader)
+
+# source https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
+def validation_loop(model, loss_fn, dataloader, device):
+    model.eval() # set model to evaluation mode
+    total_loss = 0
+
+    with torch.no_grad():
+        for batch in dataloader:
+            X, y = batch[:, 0], batch[:, 1]
+            X, y = torch.tensor(X, dtype=torch.long, device=device), torch.tensor(y, dtype=torch.long, device=device)
+
+            # Shift over one as we did in the training loop.
+            # TODO Evaluate if this is necessary.
+
+            y_input = y[:, :-1]
+            y_expected = y[:, 1:]
+
+            # mask out next words
+            # TODO -- Evaluate if this is necessary
+            seq_len = y_input.size(1)
+            tgt_mask = model.get_tgt_mask(seq_len).to(device)
+
+            # get prediction
+            pred = model(X, y_input) # source example uses -> pred = model(X, y_input, tgt_mask)
+
+            # permute to have batch size first
+            pred = pred.permute(1, 2, 0)
+            loss = loss_fn(pred, y_expected)
+
+            total_loss += loss.detach().item()
+
+    return total_loss / len(dataloader)
+
+# Running training and validation -- see https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
+# This function generates two lists, a training loss list and validation loss list. We can plot these.
+def fit(model, opt, loss_fn, train_dataloader, val_dataloader, epochs):
+    # Used for plotting later on
+    train_loss_list, validation_loss_list = [], []
+
+    print("Training and validating model")
+    for epoch in range(epochs):
+        print("-" * 25, f"Epoch {epoch + 1}", "-" * 25)
+
+        train_loss = train_loop(model, opt, loss_fn, train_dataloader)
+        train_loss_list += [train_loss]
+
+        validation_loss = validation_loop(model, loss_fn, val_dataloader)
+        validation_loss_list += [validation_loss]
+
+        print(f"Training loss: {train_loss:.4f}")
+        print(f"Validation loss: {validation_loss:.4f}")
+        print()
+
+    return train_loss_list, validation_loss_list
+
+# https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
+def batchify_data(data, batch_size=16, padding=False, padding_token=-1):
+    print("Batching data...")
+    batches = []
+    for idx in range(0, len(data), batch_size):
+        print("idx: " + str(idx))
+        print("len data: " + str(len(data)))
+        # We make sure we dont get the last bit if its not batch_size size
+        if idx + batch_size < len(data):
+            # Here you would need to get the max length of the batch,
+            # and normalize the length with the PAD token.
+            if padding:
+                max_batch_length = 0
+
+                # Get longest sentence in batch
+                for seq in data[idx : idx + batch_size]:
+                    if len(seq) > max_batch_length:
+                        max_batch_length = len(seq)
+
+                # Append X padding tokens until it reaches the max length
+                for seq_idx in range(batch_size):
+                    remaining_length = max_batch_length - len(data[idx + seq_idx])
+                    data[idx + seq_idx] += [padding_token] * remaining_length
+
+            batches.append(np.array(data[idx : idx + batch_size]).astype(np.int64))
+
+    print(f"{len(batches)} batches of size {batch_size}")
+
+    return batches
+
+

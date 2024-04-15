@@ -69,11 +69,11 @@ def simple_time_split_validation(stock_dataframe, seed = 0, split_num = 0.75, y_
         # generate x as dates, and ALL OTHER COLUMNS as y
         print("Generating train test split... with split_num as: " + str(split_num))
         x_train = stock_dataframe["Date"].iloc[0:split_num]
-        y_train = stock_dataframe.iloc[0:split_num, 1:-1]
+        y_train = stock_dataframe.iloc[0:split_num, 1:]
         print("y_train: \n" + str(y_train))
 
         x_test = stock_dataframe["Date"].iloc[split_num:-1]
-        y_test = stock_dataframe.iloc[split_num:, 1:-1] #.iloc[0:split_num]
+        y_test = stock_dataframe.iloc[split_num:, 1:] #.iloc[0:split_num]
         print("y_test: \n" + str(y_test))
 
         return x_train, y_train, x_test, y_test
@@ -93,6 +93,16 @@ def day_convert(input_df, reference_date = '1985-12-31'):
     day_df = (pd.to_datetime(input_df['Date']) - pd.to_datetime(reference_date)).dt.days
     input_df['Date'] = day_df
     return input_df
+
+# Normalize if column too big for embeddings i.e. Volume data
+# https://stackoverflow.com/questions/26414913/normalize-columns-of-a-dataframe
+def normalize_column(input_df, col_to_normalize):
+    print("Normalizing column: "+ col_to_normalize)
+    normed = input_df[col_to_normalize] / input_df[col_to_normalize].max() * 10
+    input_df[col_to_normalize] = normed
+
+    return input_df
+
 
 def plot_loss_curves(train_loss_list, val_loss_list, num_epochs, filename = ""):
     print("Plotting results and saving to file: " + str(filename))
@@ -128,7 +138,7 @@ def train_loop(model, opt, loss_fn, dataloader, device):
         # shift targets over by one to predict the token at pos = 1.
         # TODO verify empirically if we even need to do this for our application?
 
-        y_input = y[:, -1]
+        y_input = y[:, :-1]
         y_expected = y[:, 1:]
 
         # Masking out next words
@@ -169,7 +179,7 @@ def validation_loop(model, loss_fn, dataloader, device):
             # Shift over one as we did in the training loop.
             # TODO Evaluate if this is necessary. Also add if else to cater if y is only one column
 
-            y_input = y[:, -1]
+            y_input = y[:, :-1]
             y_expected = y[:, 1:]
 
             # mask out next words

@@ -24,7 +24,9 @@ if __name__=="__main__":
     day_data = day_convert(MSFT_data)
     # print("Sec data: " + str(sec_data))
     MSFT_data = day_data
-    print("Date data converted to seconds. New df: \n" + str(MSFT_data))
+    normed_volume = normalize_column(MSFT_data, 'Volume')
+    MSFT_data = normed_volume
+    print("Date data converted to days. New df: \n" + str(MSFT_data))
 
     # train test split
     MSFT_x_train, MSFT_y_train, MSFT_x_test, MSFT_y_test = simple_time_split_validation(stock_dataframe=MSFT_data, split_num=.75, y_value="")

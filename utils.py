@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
+import matplotlib.pyplot as plt
 
 # KAA 04_08_2024 -- Feel free to edit / Augment as needed!
 # This function takes a stock or etf as input. Be sure to set the filepath correctly if using a stock or etf.
@@ -92,6 +93,23 @@ def day_convert(input_df, reference_date = '1985-12-31'):
     day_df = (pd.to_datetime(input_df['Date']) - pd.to_datetime(reference_date)).dt.days
     input_df['Date'] = day_df
     return input_df
+
+def plot_loss_curves(train_loss_list, val_loss_list, num_epochs, filename = ""):
+    print("Plotting results and saving to file: " + str(filename))
+    x_axis = np.arange(0, num_epochs, 1)
+    y_val = val_loss_list
+    y_train = train_loss_list
+    plt.plot(x_axis, y_val, label = 'validation', marker='o')
+    plt.plot(x_axis, y_train, label = 'train', marker='o')
+
+    plt.title("Epochs vs loss")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.savefig(filename)
+
+
+
 
 # inspired by: https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
 def train_loop(model, opt, loss_fn, dataloader, device):

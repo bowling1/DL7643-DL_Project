@@ -14,6 +14,7 @@ def get_dataframe(stock_name = "SPY", filepath = "7643_dataset/etfs"):
         print("Loading data for: " + stock_name + " at " + data_path)
         stock_dataframe = pd.read_csv(data_path)
         print("Successfully loaded data.")
+
         return stock_dataframe
     except:
         print("Failed to load data. Verify stock name exists in datapath.")
@@ -51,16 +52,46 @@ def simple_time_split_validation(stock_dataframe, seed = 0, split_num = 0.75, y_
         percent = split_num * 100
         print("Using " + str(percent) + " Percent of the dataset for training and " + str(100-percent) + " for testing.")
         split_num = int(split_num*stock_dataframe.shape[0])
-    print("Generating train test split... with split_num as: " + str(split_num))
-    x_train = stock_dataframe["Date"].iloc[0:split_num]
-    y_train = stock_dataframe[y_value].iloc[0:split_num]
-    print(str(y_train))
+    if y_value != "":
+        # generate y value as only one column
+        print("Generating train test split... with split_num as: " + str(split_num))
+        x_train = stock_dataframe["Date"].iloc[0:split_num]
+        y_train = stock_dataframe[y_value].iloc[0:split_num]
+        print(str(y_train))
 
-    x_test = stock_dataframe["Date"].iloc[split_num:-1]
-    y_test = stock_dataframe[y_value].iloc[split_num:-1]
-    print(str(y_test))
+        x_test = stock_dataframe["Date"].iloc[split_num:-1]
+        y_test = stock_dataframe[y_value].iloc[split_num:-1]
+        print(str(y_test))
 
-    return x_train, y_train, x_test, y_test
+        return x_train, y_train, x_test, y_test
+    else:
+        # generate x as dates, and ALL OTHER COLUMNS as y
+        print("Generating train test split... with split_num as: " + str(split_num))
+        x_train = stock_dataframe["Date"].iloc[0:split_num]
+        y_train = stock_dataframe.iloc[0:split_num, 1:-1]
+        print("y_train: \n" + str(y_train))
+
+        x_test = stock_dataframe["Date"].iloc[split_num:-1]
+        y_test = stock_dataframe.iloc[split_num:, 1:-1] #.iloc[0:split_num]
+        print("y_test: \n" + str(y_test))
+
+        return x_train, y_train, x_test, y_test
+
+# Function to convert date column to seconds since the NYSE began
+# Input df must have a 'Date' Column
+def second_convert(input_df, reference_date = '1792-05-17'):
+    # YYYY-MM-DD
+    # NY Stock exchange started on May 17, 1792
+    sec_df = (pd.to_datetime(input_df['Date']) - pd.to_datetime(reference_date)).dt.total_seconds()
+    input_df['Date'] = sec_df
+    return input_df
+
+def day_convert(input_df, reference_date = '1985-12-31'):
+    # YYYY-MM-DD
+    # NY Stock exchange started on May 17, 1792
+    day_df = (pd.to_datetime(input_df['Date']) - pd.to_datetime(reference_date)).dt.days
+    input_df['Date'] = day_df
+    return input_df
 
 # inspired by: https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
 def train_loop(model, opt, loss_fn, dataloader, device):
@@ -70,14 +101,16 @@ def train_loop(model, opt, loss_fn, dataloader, device):
     total_loss = 0
 
     for batch in dataloader:
-        X, y = batch[:, 0], batch[:, 1]
+        X, y = batch[:, 0], batch[:, 1:]
+        # print("training loop X: \n" + str(X))
+        # print("training loop y: \n" + str(y))
         # If using cuda -- move to gpu
-        X, y = torch.tensor(X).to(device), torch.tensor(y).to(device)
+        X, y = torch.tensor(X).to(torch.long).to(device), torch.tensor(y).to(torch.long).to(device)
 
         # shift targets over by one to predict the token at pos = 1.
         # TODO verify empirically if we even need to do this for our application?
 
-        y_input = y[:, :-1]
+        y_input = y[:, -1]
         y_expected = y[:, 1:]
 
         # Masking out next words
@@ -86,7 +119,9 @@ def train_loop(model, opt, loss_fn, dataloader, device):
         # tgt_mask = mode.get_tgt_mask(seq_len).to(device)
 
         # get prediction
+        # print("Generating prediction... ")
         pred = model(X, y_input)    # source uses this -> pred = model(X, y_input, tgt_mask)
+        # print("Generated prediction. Computing loss.")
 
         # change pred to have batch size first
         pred = pred.permute(1, 2, 0)
@@ -110,19 +145,19 @@ def validation_loop(model, loss_fn, dataloader, device):
 
     with torch.no_grad():
         for batch in dataloader:
-            X, y = batch[:, 0], batch[:, 1]
+            X, y = batch[:, 0], batch[:, 1:]
             X, y = torch.tensor(X, dtype=torch.long, device=device), torch.tensor(y, dtype=torch.long, device=device)
 
             # Shift over one as we did in the training loop.
-            # TODO Evaluate if this is necessary.
+            # TODO Evaluate if this is necessary. Also add if else to cater if y is only one column
 
-            y_input = y[:, :-1]
+            y_input = y[:, -1]
             y_expected = y[:, 1:]
 
             # mask out next words
             # TODO -- Evaluate if this is necessary
-            seq_len = y_input.size(1)
-            tgt_mask = model.get_tgt_mask(seq_len).to(device)
+            # seq_len = y_input.size(1)
+            # tgt_mask = model.get_tgt_mask(seq_len).to(device)
 
             # get prediction
             pred = model(X, y_input) # source example uses -> pred = model(X, y_input, tgt_mask)
@@ -137,7 +172,7 @@ def validation_loop(model, loss_fn, dataloader, device):
 
 # Running training and validation -- see https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
 # This function generates two lists, a training loss list and validation loss list. We can plot these.
-def fit(model, opt, loss_fn, train_dataloader, val_dataloader, epochs):
+def fit(model, opt, loss_fn, train_dataloader, val_dataloader, epochs, device):
     # Used for plotting later on
     train_loss_list, validation_loss_list = [], []
 
@@ -145,10 +180,10 @@ def fit(model, opt, loss_fn, train_dataloader, val_dataloader, epochs):
     for epoch in range(epochs):
         print("-" * 25, f"Epoch {epoch + 1}", "-" * 25)
 
-        train_loss = train_loop(model, opt, loss_fn, train_dataloader)
+        train_loss = train_loop(model, opt, loss_fn, train_dataloader, device=device)
         train_loss_list += [train_loss]
 
-        validation_loss = validation_loop(model, loss_fn, val_dataloader)
+        validation_loss = validation_loop(model, loss_fn, val_dataloader, device=device)
         validation_loss_list += [validation_loss]
 
         print(f"Training loss: {train_loss:.4f}")
@@ -158,12 +193,11 @@ def fit(model, opt, loss_fn, train_dataloader, val_dataloader, epochs):
     return train_loss_list, validation_loss_list
 
 # https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
-def batchify_data(data, batch_size=16, padding=False, padding_token=-1):
+def batchify_data(data, batch_size=4, padding=False, padding_token=-1):
     print("Batching data...")
+    print("len data: " + str(len(data)))
     batches = []
     for idx in range(0, len(data), batch_size):
-        print("idx: " + str(idx))
-        print("len data: " + str(len(data)))
         # We make sure we dont get the last bit if its not batch_size size
         if idx + batch_size < len(data):
             # Here you would need to get the max length of the batch,
@@ -180,9 +214,9 @@ def batchify_data(data, batch_size=16, padding=False, padding_token=-1):
                 for seq_idx in range(batch_size):
                     remaining_length = max_batch_length - len(data[idx + seq_idx])
                     data[idx + seq_idx] += [padding_token] * remaining_length
-
-            batches.append(np.array(data[idx : idx + batch_size]).astype(np.int64))
-
+            temp = np.array(data[idx : idx + batch_size])
+            batches.append(temp) # batches.append(np.array(data[idx : idx + batch_size]).astype(np.int64))
+    #print(str("Batch list: \n" + str(batches)))
     print(f"{len(batches)} batches of size {batch_size}")
 
     return batches

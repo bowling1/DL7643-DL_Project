@@ -7,6 +7,7 @@ import datetime
 
 from utils import *
 from classes import *
+from tuning import *
 
 
 
@@ -50,7 +51,7 @@ if __name__=="__main__":
         device = 'cpu'
 
     model = Transformer(
-          num_tokens=100000, dim_model=1000, num_heads=1, num_encoder_layers=1, num_decoder_layers=1, dropout_p=0.1
+          num_tokens=15000, dim_model=512, num_heads=8, num_encoder_layers=4, num_decoder_layers=4, dropout_p=0.1
     ).to(device)
 
     # Loss function -- critical for architecture analysis
@@ -59,15 +60,21 @@ if __name__=="__main__":
 
     print("Model generated.")
 
-
-    train_dataloader = batchify_data(training_data)
-    val_dataloader = batchify_data(validation_data)
+    train_dataloader = batchify_data(training_data, batch_size=128)
+    val_dataloader = batchify_data(validation_data, batch_size=128)
     print("Data has been loaded.")
 
     print("Computing the training and validation losses.")
-    num_epochs = 2
+    num_epochs = 20
     train_loss_list, validation_loss_list = fit(model, opt, loss_fn, train_dataloader, val_dataloader, epochs=num_epochs, device=device)
-
     plot_loss_curves(train_loss_list=train_loss_list, val_loss_list=validation_loss_list, num_epochs=num_epochs, filename='results.png')
+    
+
+    # Tuning functions
+    
+    print("Tuning learning rate...")
+    tune_learning_rate(train_dataloader=train_dataloader, val_dataloader=val_dataloader, num_epochs=num_epochs)
+    print("Tuning attention heads...")
+    tune_attention_heads(train_dataloader=train_dataloader, val_dataloader=val_dataloader, num_epochs=num_epochs)
 
     print("Train and testing complete.")

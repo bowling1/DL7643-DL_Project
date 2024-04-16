@@ -106,6 +106,7 @@ def normalize_column(input_df, col_to_normalize):
 
 def plot_loss_curves(train_loss_list, val_loss_list, num_epochs, filename = ""):
     print("Plotting results and saving to file: " + str(filename))
+    plt.figure()
     x_axis = np.arange(0, num_epochs, 1)
     y_val = val_loss_list
     y_train = train_loss_list

@@ -20,6 +20,22 @@ def get_dataframe(stock_name = "SPY", filepath = "7643_dataset/etfs"):
     except:
         print("Failed to load data. Verify stock name exists in datapath.")
 
+def get_multi_stock_dataframe(stocklist = ['MSFT', 'GOOG', 'AAPL'], filepath="7643_dataset/stocks"):
+    dataframe_list = []
+    for stock in stocklist:
+        # Read each data frame in
+        data_path = filepath + "/" + str(stock) + ".csv"
+        print("Loading dataframe for: " + str(data_path))
+        stock_df = pd.read_csv(data_path)
+        # Appends to list for concatenation
+        dataframe_list.append(stock_df)
+        print("Appending stock_df:\n " + str(stock_df))
+    # Concatenate
+    print("Loaded all dataframes, concatenating...")
+    result = pd.concat(dataframe_list, axis=0)
+    print("Result of concat: \n" + str(result))
+    return result
+
 # Use this to verify the configuration. This simple script just makes sure that you can load and print data.
 def test_configuration():
     try:
@@ -90,6 +106,7 @@ def second_convert(input_df, reference_date = '1792-05-17'):
 def day_convert(input_df, reference_date = '1985-12-31'):
     # YYYY-MM-DD
     # NY Stock exchange started on May 17, 1792
+    input_df['Date'] = pd.to_datetime(input_df['Date'])
     day_df = (pd.to_datetime(input_df['Date']) - pd.to_datetime(reference_date)).dt.days
     input_df['Date'] = day_df
     return input_df

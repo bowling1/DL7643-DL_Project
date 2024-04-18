@@ -68,13 +68,13 @@ if __name__=="__main__":
     num_epochs = 20
     train_loss_list, validation_loss_list = fit(model, opt, loss_fn, train_dataloader, val_dataloader, epochs=num_epochs, device=device)
     plot_loss_curves(train_loss_list=train_loss_list, val_loss_list=validation_loss_list, num_epochs=num_epochs, filename='results.png')
-    
+
 
     # Tuning functions
     
-    print("Tuning learning rate...")
-    tune_learning_rate(train_dataloader=train_dataloader, val_dataloader=val_dataloader, num_epochs=num_epochs)
-    print("Tuning attention heads...")
-    tune_attention_heads(train_dataloader=train_dataloader, val_dataloader=val_dataloader, num_epochs=num_epochs)
-
-    print("Train and testing complete.")
+    # print("Tuning learning rate...")
+    # tune_learning_rate(train_dataloader=train_dataloader, val_dataloader=val_dataloader, num_epochs=num_epochs)
+    # print("Tuning attention heads...")
+    # tune_attention_heads(train_dataloader=train_dataloader, val_dataloader=val_dataloader, num_epochs=num_epochs)
+    #
+    # print("Train and testing complete.")

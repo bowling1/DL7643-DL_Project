@@ -17,8 +17,9 @@ if __name__=="__main__":
     combined_df = get_multi_stock_dataframe(stocklist=stock_list, filepath="7643_dataset/stocks")
 
     # Convert dates to seconds or days
-    with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
-        print("Raw dataframe: \n" + str(combined_df))
+    # with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
+    print("Raw dataframe: \n" + str(combined_df))
+
     print("Converting dates to seconds...")
     # combined_df['Date'] = pd.to_datetime(combined_df['Date'])
     day_data = day_convert(combined_df, reference_date='1985-12-31')
@@ -39,6 +40,10 @@ if __name__=="__main__":
     validation_data = [comb_x_test, comb_y_test]
     validation_data = pd.concat(validation_data, axis=1)
 
+    train_dataloader = batchify_data(training_data, batch_size=4)
+    val_dataloader = batchify_data(validation_data, batch_size=4)
+    print("Data has been loaded.")
+
     # use cuda if available
     device = 'cuda'
     if torch.cuda.is_available():
@@ -56,12 +61,8 @@ if __name__=="__main__":
 
     print("Model generated.")
 
-    train_dataloader = batchify_data(training_data, batch_size=4)
-    val_dataloader = batchify_data(validation_data, batch_size=4)
-    print("Data has been loaded.")
-
     print("Computing the training and validation losses.")
-    num_epochs = 5
+    num_epochs = 3
     train_loss_list, validation_loss_list = fit(model, opt, loss_fn, train_dataloader, val_dataloader,
                                                 epochs=num_epochs, device=device)
     plot_loss_curves(train_loss_list=train_loss_list, val_loss_list=validation_loss_list, num_epochs=num_epochs,

@@ -51,6 +51,7 @@ class Transformer(nn.Module):
         num_encoder_layers,
         num_decoder_layers,
         dropout_p,
+        use_lstm = False
     ):
         super().__init__()
 
@@ -95,5 +96,24 @@ class Transformer(nn.Module):
         out = self.out(transformer_out)
 
         return out
+    def encode(self, x):
+        x = self.embedding(x) * math.sqrt(self.dim_model)
+        x = self.positional_encoder(x)
+        x = x.permute(1, 0, 2)
+        return x
 
+    def decode(self, x):
+        x = self.embedding(x) * math.sqrt(self.dim_model)
+        x = self.positional_encoder(x)
+        x = x.permute(1, 0, 2)
+        return x
+    
+    def lstm_integration(self, x):
+        if self.use_lstm:
+            out, _ = self.lstm(x)
+            return out
+        else:
+            pass
+
+    
 

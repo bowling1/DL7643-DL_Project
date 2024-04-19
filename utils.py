@@ -151,11 +151,13 @@ def train_loop(model, opt, loss_fn, dataloader, device):
         # print("training loop X: \n" + str(X))
         # print("training loop y: \n" + str(y))
         # If using cuda -- move to gpu
-        X, y = torch.tensor(X).to(torch.long).to(device), torch.tensor(y).to(torch.long).to(device)
+        #X, y = torch.tensor(X).to(torch.long).to(device), torch.tensor(y).to(torch.long).to(device)
+        X, y = torch.tensor(X, dtype=torch.long), torch.tensor(y, dtype=torch.long)
+        X, y = X.to(device), y.to(device)
 
         # shift targets over by one to predict the token at pos = 1.
         # TODO verify empirically if we even need to do this for our application?
-
+        encoded_inputs = model.encode(X)
         y_input = y[:, :-1]
         y_expected = y[:, 1:]
 
@@ -163,14 +165,14 @@ def train_loop(model, opt, loss_fn, dataloader, device):
         # TODO enable this if necessary. May not be necesary for us.
         # seq_len = y_input.size(1)
         # tgt_mask = mode.get_tgt_mask(seq_len).to(device)
-
+        
         # get prediction
         # print("Generating prediction... ")
-        pred = model(X, y_input)    # source uses this -> pred = model(X, y_input, tgt_mask)
+        pred = model(encoded_inputs, y_input)    # source uses this -> pred = model(X, y_input, tgt_mask)
         # print("Generated prediction. Computing loss.")
 
         # change pred to have batch size first
-        pred = pred.permute(1, 2, 0)
+        #pred = pred.permute(1, 2, 0)
 
         # Compute the loss
         loss = loss_fn(pred, y_expected)
@@ -192,11 +194,12 @@ def validation_loop(model, loss_fn, dataloader, device):
     with torch.no_grad():
         for batch in dataloader:
             X, y = batch[:, 0], batch[:, 1:]
-            X, y = torch.tensor(X, dtype=torch.long, device=device), torch.tensor(y, dtype=torch.long, device=device)
-
+            #X, y = torch.tensor(X, dtype=torch.long, device=device), torch.tensor(y, dtype=torch.long, device=device)
+            X, y = torch.tensor(X, dtype=torch.long), torch.tensor(y, dtype=torch.long)
+            X, y = X.to(device), y.to(device)
             # Shift over one as we did in the training loop.
             # TODO Evaluate if this is necessary. Also add if else to cater if y is only one column
-
+            encoded_inputs = model.encode(X)
             y_input = y[:, :-1]
             y_expected = y[:, 1:]
 
@@ -206,10 +209,10 @@ def validation_loop(model, loss_fn, dataloader, device):
             # tgt_mask = model.get_tgt_mask(seq_len).to(device)
 
             # get prediction
-            pred = model(X, y_input) # source example uses -> pred = model(X, y_input, tgt_mask)
+            pred = model(encoded_inputs, y_input) # source example uses -> pred = model(X, y_input, tgt_mask)
 
             # permute to have batch size first
-            pred = pred.permute(1, 2, 0)
+            #pred = pred.permute(1, 2, 0)
             loss = loss_fn(pred, y_expected)
 
             total_loss += loss.detach().item()

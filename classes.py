@@ -80,8 +80,10 @@ class Transformer(nn.Module):
     ):
         # Src size must be (batch_size, src sequence length)
         # Tgt size must be (batch_size, tgt sequence length)
-
+        print(tgt.size())
         # Embedding + positional encoding - Out size = (batch_size, sequence length, dim_model)
+        src = src.to(torch.long)
+
         src = self.embedding(src) * math.sqrt(self.dim_model)
         tgt = self.embedding(tgt) * math.sqrt(self.dim_model)
         src = self.positional_encoder(src)

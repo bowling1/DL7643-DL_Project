@@ -78,20 +78,23 @@ class Transformer(nn.Module):
         src,
         tgt,
     ):
+        # Commenting these out as these are handled by Bokyoung's encode function
+
         # Src size must be (batch_size, src sequence length)
         # Tgt size must be (batch_size, tgt sequence length)
-        print(tgt.size())
+        # print(tgt.size())
+        # print(src.size())
         # Embedding + positional encoding - Out size = (batch_size, sequence length, dim_model)
-        src = src.to(torch.long)
+        #src = src.to(torch.long)
 
-        src = self.embedding(src) * math.sqrt(self.dim_model)
-        tgt = self.embedding(tgt) * math.sqrt(self.dim_model)
-        src = self.positional_encoder(src)
-        tgt = self.positional_encoder(tgt)
+        # src = self.embedding(src) * math.sqrt(self.dim_model)
+        # tgt = self.embedding(tgt) * math.sqrt(self.dim_model)
+        # src = self.positional_encoder(src)
+        # tgt = self.positional_encoder(tgt)
 
         # we permute to obtain size (sequence length, batch_size, dim_model),
-        src = src.permute(1, 0, 2)
-        tgt = tgt.permute(1, 0, 2)
+        # src = src.permute(1, 0, 2)
+        # tgt = tgt.permute(1, 0, 2)
 
         # Transformer blocks - Out size = (sequence length, batch_size, num_tokens)
         transformer_out = self.transformer(src, tgt)

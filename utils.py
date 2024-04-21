@@ -160,6 +160,7 @@ def train_loop(model, opt, loss_fn, dataloader, device):
         encoded_inputs = model.encode(X)
         y_input = y[:, :-1]
         y_expected = y[:, 1:]
+        encoded_y_inputs = model.encode(y_input)
 
         # Masking out next words
         # TODO enable this if necessary. May not be necesary for us.
@@ -168,11 +169,11 @@ def train_loop(model, opt, loss_fn, dataloader, device):
         
         # get prediction
         # print("Generating prediction... ")
-        pred = model(encoded_inputs, y_input)    # source uses this -> pred = model(X, y_input, tgt_mask)
+        pred = model(encoded_inputs, encoded_y_inputs)    # source uses this -> pred = model(X, y_input, tgt_mask)
         # print("Generated prediction. Computing loss.")
 
         # change pred to have batch size first
-        #pred = pred.permute(1, 2, 0)
+        pred = pred.permute(1, 2, 0)
 
         # Compute the loss
         loss = loss_fn(pred, y_expected)
@@ -202,6 +203,7 @@ def validation_loop(model, loss_fn, dataloader, device):
             encoded_inputs = model.encode(X)
             y_input = y[:, :-1]
             y_expected = y[:, 1:]
+            encoded_y_inputs = model.encode(y_input)
 
             # mask out next words
             # TODO -- Evaluate if this is necessary
@@ -209,10 +211,10 @@ def validation_loop(model, loss_fn, dataloader, device):
             # tgt_mask = model.get_tgt_mask(seq_len).to(device)
 
             # get prediction
-            pred = model(encoded_inputs, y_input) # source example uses -> pred = model(X, y_input, tgt_mask)
+            pred = model(encoded_inputs, encoded_y_inputs) # source example uses -> pred = model(X, y_input, tgt_mask)
 
             # permute to have batch size first
-            #pred = pred.permute(1, 2, 0)
+            pred = pred.permute(1, 2, 0)
             loss = loss_fn(pred, y_expected)
 
             total_loss += loss.detach().item()

@@ -36,7 +36,54 @@ class PositionalEncoding(nn.Module):
     def forward(self, token_embedding: torch.tensor) -> torch.tensor:
         # Residual connection + pos encoding
         return self.dropout(token_embedding + self.pos_encoding[:token_embedding.size(0), :])
+#Citation -- https://medium.com/@eugenesh4work/attention-mechanism-for-lstm-used-in-a-sequence-to-sequence-task-be1d54919876
+class EncoderLSTM(nn.Module):
+    def __init__(self, input_dim, emb_dim, hidden_dim, n_layers):
+        super(EncoderLSTM, self).__init__()
+        self.embedding = nn.Embedding(input_dim, emb_dim)
+        self.rnn = nn.LSTM(emb_dim, hidden_dim, n_layers, batch_first=True)
+        
+    def forward(self, src):
+        embedded = self.embedding(src)
+        outputs, (hidden, cell) = self.rnn(embedded)
+        return outputs, hidden, cell
 
+class Attention(nn.Module):
+    def __init__(self):
+        super(Attention, self).__init__()
+
+    def forward(self, encoder_outputs, decoder_hidden):
+        # encoder_outputs: (batch_size, seq_len, hidden_dim)
+        # decoder_hidden: (batch_size, hidden_dim)
+        # Calculate the attention scores.
+        scores = torch.bmm(encoder_outputs, decoder_hidden.unsqueeze(2)).squeeze(2)  # (batch_size, seq_len)
+        
+        attn_weights = F.softmax(scores, dim=1)  # (batch_size, seq_len)
+        
+        context_vector = torch.bmm(attn_weights.unsqueeze(1), encoder_outputs).squeeze(1)  # (batch_size, hidden_dim)
+
+        return context_vector, attn_weights
+
+class DecoderLSTMWithAttention(nn.Module):
+    def __init__(self, output_dim, emb_dim, hidden_dim, n_layers):
+        super(DecoderLSTMWithAttention, self).__init__()
+        self.embedding = nn.Embedding(output_dim, emb_dim)
+        self.rnn = nn.LSTM(emb_dim + hidden_dim, hidden_dim, n_layers, batch_first=True)
+        self.out = nn.Linear(hidden_dim, output_dim)
+        self.attention = Attention()
+
+    def forward(self, input, encoder_outputs, hidden, cell):
+        input = input.unsqueeze(1)  # (batch_size, 1)
+        embedded = self.embedding(input)  # (batch_size, 1, emb_dim)
+        
+        context_vector, attn_weights = self.attention(encoder_outputs, hidden[-1])  # using the last layer's hidden state
+
+        rnn_input = torch.cat([embedded, context_vector.unsqueeze(1)], dim=2)  # (batch_size, 1, emb_dim + hidden_dim)
+
+        output, (hidden, cell) = self.rnn(rnn_input, (hidden, cell))
+        prediction = self.out(output.squeeze(1))
+        
+        return prediction, hidden, cell
 class Transformer(nn.Module):
     """
     Model from "A detailed guide to Pytorch's nn.Transformer() module.", by

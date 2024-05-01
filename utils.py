@@ -140,11 +140,17 @@ def plot_loss_curves(train_loss_list, val_loss_list, num_epochs, filename = ""):
 
 
 # inspired by: https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
-def train_loop(model, opt, loss_fn, dataloader, device):
+def train_loop(model, opt, loss_fn, dataloader, device, drop_low_scores=False):
     print("Executing training loop")
 
     model.train()
     total_loss = 0
+
+    x_full = []
+    y_full = []
+    c_full = []
+    import copy
+    old_model = copy.deepcopy(model)
 
     for batch in dataloader:
         X, y = batch[:, 0], batch[:, 1:]
@@ -185,6 +191,41 @@ def train_loop(model, opt, loss_fn, dataloader, device):
 
         total_loss += loss.detach().item()
 
+        c = list(np.abs(encoded_inputs.detach().numpy()).sum(axis=2).sum(axis=1))
+        x_full += list(batch[:, 0])
+        y_full += list(batch[:, 1])
+        c_full += list(c)
+
+    if drop_low_scores:
+        bad_dates = (np.array(c_full)<np.percentile(c_full, 20)) * x_full
+        colors = np.array(c_full)
+        colors = (colors-(colors.min()))
+        colors = plt.cm.jet(colors/colors.max())
+        # c = list(np.abs(model.src.sum(axis=2)[0, :].detach().numpy()))
+        plt.clf()
+        fig, ax = plt.subplots()
+        for i in range(0, len(colors), 2):
+            ax.plot(x_full[i:i+3],y_full[i:i+3],color=colors[i])      
+        cmap = plt.get_cmap('jet', len(colors))
+        sm = plt.cm.ScalarMappable(cmap=cmap)
+        plt.colorbar(sm, ax=ax)
+        plt.xlabel("Days since 12/31/1985")
+        plt.ylabel("Stock price")
+        plt.savefig("Encoded_output.jpg")
+        new_dataloader = []
+        for b in range(len(dataloader)):
+            batch = []
+            for i in range(len(dataloader[b])):
+                if dataloader[b][i, 0] not in bad_dates:
+                    batch.append(dataloader[b][i, :])
+            new_dataloader.append(np.array(batch))
+        loss = train_loop(old_model, opt, loss_fn, new_dataloader, device, drop_low_scores=False)
+        model = old_model
+        print("Dropped loss: "+str(loss))
+        # print("Regular loss: "+str(total_loss/len(dataloader)))
+
+        return loss
+
     return total_loss / len(dataloader)
 
 # source https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
@@ -223,7 +264,7 @@ def validation_loop(model, loss_fn, dataloader, device):
 
 # Running training and validation -- see https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
 # This function generates two lists, a training loss list and validation loss list. We can plot these.
-def fit(model, opt, loss_fn, train_dataloader, val_dataloader, epochs, device):
+def fit(model, opt, loss_fn, train_dataloader, val_dataloader, epochs, device, drop_low_scores=False):
     # Used for plotting later on
     train_loss_list, validation_loss_list = [], []
 
@@ -231,7 +272,7 @@ def fit(model, opt, loss_fn, train_dataloader, val_dataloader, epochs, device):
     for epoch in range(epochs):
         print("-" * 25, f"Epoch {epoch + 1}", "-" * 25)
 
-        train_loss = train_loop(model, opt, loss_fn, train_dataloader, device=device)
+        train_loss = train_loop(model, opt, loss_fn, train_dataloader, device=device, drop_low_scores=drop_low_scores)
         train_loss_list += [train_loss]
 
         validation_loss = validation_loop(model, loss_fn, val_dataloader, device=device)
